@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- ============== SEO + social ============== -->
+    <title>New Datadome Deobfuscator · TakionAPI</title>
+    <meta name="description" content="Drop a DataDome captcha or interstitial bundle, get clean readable modules. Open-source Babel AST deobfuscator. Real-time logs, syntax highlighting, zip download. Extracts dynamic_challenge, boring_challenge, wasm payload, VM, t-matrix." />
+    <meta name="keywords" content="datadome, datadome deobfuscator, datadome bypass, datadome solution, datadome dynamic_challenge, datadome boring_challenge, datadome boringChallenge, datadome wasm, datadome vm, datadome captcha, datadome interstitial, datadome reverse engineering, datadome obfuscation, anti-bot, antibot, babel, ast" />
+    <meta name="author" content="glizzykingdreko" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://new-datadome-deobfuscator.glizzykingdreko.com/" />
+    <meta name="theme-color" content="#0e0c0a" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96x96.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TakionAPI" />
+    <meta property="og:url" content="https://new-datadome-deobfuscator.glizzykingdreko.com/" />
+    <meta property="og:title" content="datadome deobfuscator · open-source captcha + interstitial · TakionAPI" />
+    <meta property="og:description" content="Drop a DataDome captcha or interstitial bundle, get clean readable modules. Real-time logs, syntax highlighting, zip download." />
+    <meta property="og:image" content="https://new-datadome-deobfuscator.glizzykingdreko.com/assets/banner.png" />
+    <meta property="og:image:width" content="1718" />
+    <meta property="og:image:height" content="916" />
+    <meta property="og:image:alt" content="datadome deobfuscator dashboard, IDE-style with live deobfuscation logs" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@glizzykingdreko" />
+    <meta name="twitter:creator" content="@glizzykingdreko" />
+    <meta name="twitter:title" content="datadome deobfuscator · open-source captcha + interstitial" />
+    <meta name="twitter:description" content="Drop a DataDome captcha or interstitial bundle, get clean readable modules. Babel AST pipeline, real-time logs." />
+    <meta name="twitter:image" content="https://new-datadome-deobfuscator.glizzykingdreko.com/assets/banner.png" />
+
+    <!-- JSON-LD: SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "new-datadome-deobfuscator",
+      "alternateName": ["datadome deob", "DataDome script deobfuscator"],
+      "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "Reverse Engineering Tool",
+      "operatingSystem": "Web, Node.js >= 18",
+      "description": "Babel AST-based deobfuscator for DataDome client-side captcha and interstitial bundles. Drop in obfuscated source, get clean readable modules. Extracts dynamic_challenge, boring_challenge, wasm payload, VM, t-matrix.",
+      "url": "https://new-datadome-deobfuscator.glizzykingdreko.com/",
+      "downloadUrl": "https://github.com/glizzykingdreko/new-datadome-deobfuscator",
+      "softwareVersion": "2.0.0",
+      "license": "https://opensource.org/licenses/MIT",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "glizzykingdreko",
+        "url": "https://github.com/glizzykingdreko",
+        "sameAs": [
+          "https://github.com/glizzykingdreko",
+          "https://medium.com/@glizzykingdreko",
+          "https://mobile.twitter.com/glizzykingdreko"
+        ]
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "TakionAPI",
+        "url": "https://takionapi.tech",
+        "logo": "https://takionapi.tech/assets/takion_logo.svg"
+      },
+      "featureList": [
+        "Deobfuscates DataDome captcha bundles into 9 readable modules",
+        "Deobfuscates DataDome interstitial bundles into 7 readable modules",
+        "Extracts the per-session dynamic_challenge bit-twiddle expression",
+        "Extracts the boring_challenge stage",
+        "Extracts the wasm payload, helpers, window attributes, and fields",
+        "Folds MBA opaque predicates back to constants or linear forms",
+        "Unflattens switch-case state machines",
+        "Resolves t-matrix indirection",
+        "Real-time NDJSON log streaming via worker thread",
+        "Syntax-highlighted output via Prism",
+        "Available as Node.js library, CLI, and web UI"
+      ]
+    }
+    </script>
+
+    <!-- JSON-LD: Organization (TakionAPI) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "TakionAPI",
+      "url": "https://takionapi.tech",
+      "logo": "https://takionapi.tech/assets/takion_logo.svg",
+      "description": "Anti-bot bypass APIs for DataDome, Akamai, PerimeterX, hCaptcha, and others.",
+      "founder": {
+        "@type": "Person",
+        "name": "glizzykingdreko",
+        "url": "https://github.com/glizzykingdreko"
+      },
+      "sameAs": [
+        "https://github.com/glizzykingdreko",
+        "https://mobile.twitter.com/glizzykingdreko",
+        "https://medium.com/@glizzykingdreko"
+      ]
+    }
+    </script>
+
+    <!-- JSON-LD: WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "new-datadome-deobfuscator",
+      "url": "https://new-datadome-deobfuscator.glizzykingdreko.com/",
+      "inLanguage": "en-US",
+      "description": "Open-source Babel AST deobfuscator for DataDome captcha and interstitial bundles.",
+      "publisher": {
+        "@type": "Organization",
+        "name": "TakionAPI",
+        "url": "https://takionapi.tech"
+      }
+    }
+    </script>
+
+    <!-- JSON-LD: BreadcrumbList -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "glizzykingdreko", "item": "https://glizzykingdreko.com/" },
+        { "@type": "ListItem", "position": 2, "name": "DataDome Deobfuscator", "item": "https://new-datadome-deobfuscator.glizzykingdreko.com/" }
+      ]
+    }
+    </script>
+
+
+    <!-- ============== assets ============== -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Doto:wght@400;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- title bar -->
+    <header class="bar bar--top">
+      <span class="bar__brand">datadome / deob</span>
+      <span class="bar__sep">·</span>
+      <span class="bar__dim">v2.0</span>
+      <span class="bar__spacer"></span>
+      <span class="bar__status" id="status" data-state="idle">
+        <span class="bar__dot" id="statusDot"></span>
+        <span id="statusLabel">idle</span>
+      </span>
+    </header>
+
+    <!-- main shell -->
+    <main class="shell">
+      <!-- left rail / explorer -->
+      <aside class="rail">
+        <div class="rail__head">
+          <span class="rail__label">explorer</span>
+          <span class="rail__hint" id="bundleHint">—</span>
+        </div>
+        <nav class="rail__list" id="tabs" role="tablist" aria-label="Modules">
+          <div class="rail__empty">no file loaded</div>
+        </nav>
+        <div class="rail__foot">
+          <button id="downloadBtn" class="btn btn--mini" hidden>
+            <span>download .zip</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- editor area -->
+      <section class="editor">
+        <!-- drop pane (shown until a file is loaded) -->
+        <div class="dropwrap" id="dropwrap">
+          <div id="drop" class="drop" tabindex="0" role="button" aria-label="Drop a JS file or click to upload">
+            <span class="drop__line">// drop a .js file</span>
+            <span class="drop__line drop__line--dim">// or click to browse</span>
+            <span class="drop__file" id="dropPrimary">—</span>
+            <span class="drop__meta" id="fileMeta">no file</span>
+            <input id="fileInput" type="file" accept=".js,text/javascript,application/javascript" hidden />
+          </div>
+          <div class="dropwrap__actions">
+            <button id="runBtn" class="btn btn--primary" disabled>
+              <span class="btn__caret">▸</span>
+              <span>run deobfuscator</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- results pane (revealed after run) -->
+        <div id="results" class="results" hidden>
+          <header class="results__head">
+            <span class="results__crumb"><span id="bundleType">—</span></span>
+            <span class="bar__sep">/</span>
+            <span class="results__crumb results__crumb--dim"><span id="moduleCount">—</span> modules</span>
+            <span class="bar__sep">/</span>
+            <span class="results__crumb results__crumb--accent"><span id="statReduction">—</span> reduced</span>
+            <span class="bar__spacer"></span>
+            <span class="results__chip">orig <b id="statOriginal">—</b></span>
+            <span class="results__chip">deob <b id="statDeob">—</b></span>
+            <span class="results__chip">warn <b id="statWarn">—</b></span>
+            <button id="copyBtn" class="btn btn--xs" type="button" title="Copy active module to clipboard" hidden>
+              <span class="btn__caret">⌘</span><span>copy</span>
+            </button>
+            <button id="downloadOneBtn" class="btn btn--xs" type="button" title="Download active module as .js" hidden>
+              <span class="btn__caret">↓</span><span>save .js</span>
+            </button>
+            <button id="resetBtn" class="btn btn--xs" type="button" title="Clear and start over" hidden>
+              <span class="btn__caret">↻</span><span>clean</span>
+            </button>
+          </header>
+
+          <pre class="code line-numbers" id="code"><code id="codeBody" class="language-javascript"></code></pre>
+
+          <div class="problems">
+            <details class="meta" id="metaConsole" open>
+              <summary class="meta__summary">
+                <span class="meta__caret">▸</span>
+                <span class="meta__label">console</span>
+                <span class="meta__hint" id="consoleHint">0 entries</span>
+                <button id="consoleFollow" class="meta__action meta__action--accent" type="button" hidden>↓ follow</button>
+                <button id="consoleSave"   class="meta__action" type="button" hidden>save .txt</button>
+                <button id="consoleClear"  class="meta__action" type="button" hidden>clear</button>
+              </summary>
+              <div class="logwin" id="logwin" role="log" aria-live="polite"></div>
+            </details>
+
+            <details class="meta" id="metaDc">
+              <summary class="meta__summary">
+                <span class="meta__caret">▸</span>
+                <span class="meta__label">dynamic_challenge</span>
+                <span class="meta__hint" id="dcHint">—</span>
+              </summary>
+              <pre class="meta__body meta__body--code" id="dcBody"><code id="dcCode" class="language-javascript">—</code></pre>
+            </details>
+
+            <details class="meta" id="metaWasm">
+              <summary class="meta__summary">
+                <span class="meta__caret">▸</span>
+                <span class="meta__label">wasm payload</span>
+                <span class="meta__hint" id="wasmHint">—</span>
+              </summary>
+              <div class="meta__body meta__body--grid" id="wasmBody">—</div>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- TakionAPI promo — gold gradient pill, minimizable, persisted -->
+    <a id="promo" class="promo" href="https://takionapi.tech/" target="_blank" rel="noopener noreferrer"
+       aria-label="Need help with DataDome? Plug TakionAPI's solver.">
+      <span class="promo__logo" aria-hidden="true">
+        <img src="https://takionapi.tech/assets/takion_logo.svg" alt="" width="22" height="22" loading="lazy" />
+      </span>
+      <span class="promo__label">Need help with DataDome?</span>
+      <svg class="promo__ext" aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"
+           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 3h6v6"/>
+        <path d="M10 14 21 3"/>
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+      </svg>
+      <button id="promoClose" type="button" class="promo__close" aria-label="Minimize">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18"/>
+          <path d="m6 6 12 12"/>
+        </svg>
+      </button>
+    </a>
+
+    <!-- status bar -->
+    <footer class="bar bar--bottom">
+      <span class="bar__dim">datadome-deobfuscator@2.0</span>
+      <span class="bar__sep">·</span>
+      <span class="bar__dim">node ≥ 18</span>
+      <span class="bar__spacer"></span>
+      <button type="button" class="bar__link bar__link--btn" data-modal="api">api ↑</button>
+      <span class="bar__sep">·</span>
+      <button type="button" class="bar__link bar__link--btn" data-modal="npm">npm ↑</button>
+      <span class="bar__sep">·</span>
+      <a class="bar__link" href="https://github.com/glizzykingdreko/new-datadome-deobfuscator" target="_blank" rel="noopener">github ↗</a>
+    </footer>
+
+    <!-- ============== Modals: api + npm ============== -->
+    <div class="modal" id="modalApi" hidden role="dialog" aria-labelledby="modalApiTitle" aria-modal="true">
+      <div class="modal__backdrop" data-modal-close></div>
+      <div class="modal__panel">
+        <header class="modal__head">
+          <span class="modal__path">~/api/deobfuscate</span>
+          <h2 id="modalApiTitle" class="modal__title">http api</h2>
+          <button type="button" class="modal__close" data-modal-close aria-label="Close">×</button>
+        </header>
+        <div class="modal__body">
+          <p class="modal__lede">// drop a captcha or interstitial bundle, get a json response. node 18+ only.</p>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[01]</span> POST /api/deobfuscate</h3>
+          <p class="modal__p">default. accepts <code>application/json</code>, <code>multipart/form-data</code>, or raw js. returns one json object with the modules, stats, dynamic_challenge, and wasm summary.</p>
+          <pre class="modal__code"><code class="language-bash">curl -X POST https://new-datadome-deobfuscator.glizzykingdreko.com/api/deobfuscate \
+  -H 'content-type: application/json' \
+  -d '{"source": "<obfuscated js as a string>"}'</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[02]</span> POST /api/deobfuscate?stream=1</h3>
+          <p class="modal__p">streaming variant. returns <code>application/x-ndjson</code> with one json event per line as the worker progresses. ideal for long bundles or live log dashboards.</p>
+          <pre class="modal__code"><code class="language-bash">curl -N -X POST 'https://new-datadome-deobfuscator.glizzykingdreko.com/api/deobfuscate?stream=1&level=INFO' \
+  -H 'accept: application/x-ndjson' \
+  -H 'content-type: application/json' \
+  -d '{"source": "<obfuscated js as a string>"}'</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[03]</span> response shape</h3>
+          <pre class="modal__code"><code class="language-json">{
+  "bundleType": "captcha",
+  "modules": {
+    "captcha":      "<deobfuscated js>",
+    "vm-obf":       "<deobfuscated js>",
+    "bean":         "<deobfuscated js>",
+    "hash":         "<deobfuscated js>",
+    "helpers":      "<deobfuscated js>",
+    "main":         "<deobfuscated js>",
+    "mouseMaths":   "<deobfuscated js>",
+    "picasso":      "<deobfuscated js>",
+    "slidercaptcha":"<deobfuscated js>"
+  },
+  "moduleOrder": ["captcha", "vm-obf", "bean", "hash", ...],
+  "dynamic_challenge": "(((... ^ ...) >>> 0) ...)",
+  "wasm": {
+    "wasmBytes": 27124,
+    "helperCount": 4,
+    "windowAttributes": ["..."],
+    "providerName": "...",
+    "fields": ["..."]
+  },
+  "stats": {
+    "original":         480340,
+    "deobfuscated":     421087,
+    "reduction":        59253,
+    "reductionPercent": "12.33%"
+  },
+  "warnings": 1,
+  "errors":   []
+}</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[04]</span> ndjson event types (stream mode)</h3>
+          <pre class="modal__code"><code class="language-json">{"type":"open",   "t":1714325000000}
+{"type":"meta",   "t":1714325000050, "bytes":480340}
+{"type":"log",    "t":1714325000158, "level":"INFO",  "message":"[Deobfuscator] Replacing t-matrix..."}
+{"type":"log",    "t":1714325000233, "level":"INFO",  "message":"[Deobfuscator] Phase 3.5: harvested 25 helpers..."}
+{"type":"result", "t":1714325004866, "elapsedMs":4773, "data": { /* same shape as above */ }}
+{"type":"done",   "t":1714325004870, "exitCode":0}</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[05]</span> errors</h3>
+          <p class="modal__p"><code>400</code> bad input · <code>405</code> method not allowed · <code>500</code> worker crashed (returned in <code>{type:"error"}</code> on stream).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="modalNpm" hidden role="dialog" aria-labelledby="modalNpmTitle" aria-modal="true">
+      <div class="modal__backdrop" data-modal-close></div>
+      <div class="modal__panel">
+        <header class="modal__head">
+          <span class="modal__path">~/npm/datadome-deobfuscator</span>
+          <h2 id="modalNpmTitle" class="modal__title">node module</h2>
+          <button type="button" class="modal__close" data-modal-close aria-label="Close">×</button>
+        </header>
+        <div class="modal__body">
+          <p class="modal__lede">// the same pipeline as the dashboard, available as a node library and a cli.</p>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[01]</span> install</h3>
+          <pre class="modal__code"><code class="language-bash">npm i datadome-deobfuscator
+# or: pnpm add datadome-deobfuscator
+# or: yarn add datadome-deobfuscator</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[02]</span> library</h3>
+          <pre class="modal__code"><code class="language-javascript">const fs = require('fs');
+const { deobfuscate } = require('datadome-deobfuscator');
+
+const source = fs.readFileSync('captcha.js', 'utf8');
+const result = deobfuscate(source, { logLevel: 'INFO' });
+
+console.log(result.bundleType);             // 'captcha' | 'interstitial' | 'unknown'
+console.log(result.moduleOrder);            // ['captcha', 'vm-obf', 'bean', ...]
+console.log(result.stats.reductionPercent); // '12.33%'
+
+for (const [name, code] of Object.entries(result.modules)) {
+  fs.writeFileSync(`out/${name}.js`, code);
+}</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[03]</span> options</h3>
+          <pre class="modal__code"><code class="language-javascript">deobfuscate(source, {
+  logLevel:         'INFO',  // 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'NONE'
+  logger:           myLogger, // optional, overrides logLevel
+  maxPasses:        10,       // iterative-pass cap
+  generatorOptions: { /* @babel/generator opts */ },
+});</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[04]</span> cli</h3>
+          <pre class="modal__code"><code class="language-bash"># direct
+npx datadome-deobfuscate input.js out/
+
+# with a structured report on the side
+npx datadome-deobfuscate input.js out/ --report out/report.json
+
+# silence the stdout delimiter
+npx datadome-deobfuscate input.js out/ --no-delimiter</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[05]</span> exit codes</h3>
+          <pre class="modal__code"><code class="language-bash">0   clean run, no errors (warnings tolerated)
+1   fatal error: bad input, parse failure, or unexpected crash
+2   finished, but at least one module recorded errors</code></pre>
+
+          <h3 class="modal__h3"><span class="modal__h3num">[06]</span> stdout contract for downstream tooling</h3>
+          <p class="modal__p">the line right after <code>===DEOBFUSCATOR_RESULT===</code> contains the same json the <code>--report</code> flag writes to disk:</p>
+          <pre class="modal__code"><code class="language-python">report = json.loads(
+    out.split('===DEOBFUSCATOR_RESULT===', 1)[1].strip().splitlines()[0]
+)
+if report['status'] != 'success':
+    for e in report['errors']:
+        print(e['message'])</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <!-- Prism: data-manual prevents auto-highlight; we drive it from app.js so we can throttle big files -->
+    <script data-manual src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+input/
+output/
+node_modules/
+parser/
+deobfuscate-vm.js
+.DS_Store
+output_full*
+*.log

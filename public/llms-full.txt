@@ -1,0 +1,762 @@
+# datadome-deobfuscator
+
+> Open-source Babel AST-based deobfuscator for DataDome's client-side captcha and interstitial bundles. Drop in the obfuscated source, get clean readable modules back. Built and maintained by glizzykingdreko, the open-source companion to TakionAPI's commercial DataDome solving API.
+
+Last updated: 2026-04-28. Maintained by [glizzykingdreko](https://github.com/glizzykingdreko) at [TakionAPI](https://takionapi.tech).
+
+## What this tool does
+
+- Deobfuscates DataDome **captcha bundles** (the soft-challenge page) into 9 readable modules: `captcha`, `vm-obf`, `bean`, `hash`, `helpers`, `main`, `mouseMaths`, `picasso`, `slidercaptcha`.
+- Deobfuscates DataDome **interstitial bundles** (the full block page) into 7 readable modules: `reloader`, `interstitial`, `obfuscate`, `helpers`, `vm-obf`, `localstorage`, `main`.
+- Extracts the **dynamic_challenge** bit-twiddle expression DataDome computes per session for its request signature.
+- Extracts the **boring_challenge** stage that DataDome ships inside the captcha bundle.
+- Extracts the **wasm payload** plus its helper functions, provider name, window attributes touched, and field names produced.
+- Strips: t-matrix indirection, custom-alphabet base64 decoders, switch-case state machines, MBA opaque predicates, decoy for-inits, hex-encoded strings, deeply-nested decoders.
+- Available three ways: **web UI** at `https://new-datadome-deobfuscator.glizzykingdreko.com/`, **Node.js library** as `npm i datadome-deobfuscator`, **CLI** as `npx datadome-deobfuscate input.js out/`.
+
+## Key DataDome internals (passage-citable definitions)
+
+### What is `dynamic_challenge` in DataDome?
+
+`dynamic_challenge` is the bit-twiddle expression DataDome computes per session for its request signature. It looks like `(((... ^ ...) >>> 0) ...)` and is constructed at runtime from values captured during the challenge stage. Our deobfuscator extracts it verbatim from the parsed AST and surfaces it in the `result.dynamic_challenge` field. Most working DataDome solvers need this expression because the back-end validates request signatures against it.
+
+### What is `boring_challenge` (or `boringChallenge`) in DataDome?
+
+`boring_challenge` (sometimes written `boringChallenge` in camelCase) is the internal name DataDome uses for one of its challenge stages inside the captcha bundle. The string literal appears in the obfuscated source. Our deobfuscator preserves it through the pipeline so reverse engineers can locate the stage and analyze its inputs and outputs. The term is undocumented publicly but is a defined identifier in DataDome's own code.
+
+### What is the DataDome wasm payload?
+
+DataDome ships an embedded WebAssembly module inside the captcha bundle, called via a small set of JavaScript helper functions. The deobfuscator's `extractWasm` pass returns the raw wasm bytes, the helper function bodies, the `providerName` the module exposes, the list of `windowAttributes` it touches, and the `fields` it produces. This is what `result.wasm` contains.
+
+### How does the DataDome t-matrix work?
+
+DataDome's 2D-array indirection pattern. The script builds a precomputed matrix (typically `var e = (function(){...})()` in captcha and interstitial) and then references concrete integers throughout the code as `<matrix>[x][y]`. Our deobfuscator runs the matrix-builder IIFE in a Node `vm` context and rewrites every lookup to its concrete integer literal. This is one of the first transformations because nothing else can be folded until t-matrix lookups are resolved.
+
+### What are MBA opaque predicates in DataDome?
+
+Mixed Boolean-Arithmetic predicates such as `-3*(F&-881) + 1*~(F&o) - 4*~(F|o) - 2*~(F|-881) + -2643 > -388`. DataDome wraps decision points in these to hide the actual condition. Our deobfuscator samples each predicate across 20+ random integer assignments to its free variables. If invariant, replace with the literal. If linear, fit `a*x + b*y + c` over 40+ samples and emit the simpler form.
+
+### What is DataDome's switch-case state machine (control-flow flattening)?
+
+DataDome flattens sequential code into `for (r = N; true;) { switch (r) { case X: ...; r = Y; continue; ... } }` blocks. Our deobfuscator unflattens these back into linear code, **twice**: once before unused-variable removal, once after. The second pass catches state machines that were hidden behind decoy for-inits like `for (var eA = 544; true;)` where `eA` is never used and the real state lives in a variable assigned above the loop.
+
+### Phase 3.5 (recursive decoder harvest)
+
+Required for deeply-nested decoder detection. The top-level passes only walk `program.body[0]`, but DataDome's actual decoder functions live deep inside `function I(){...}`. Phase 3.5 walks the entire AST, classifies pure MBA helpers and decoder-shaped functions, sorts them shallowest-first to avoid clobbering top-level helpers with inner shadows, and loads them into the shared VM context.
+
+### Phase 4 (decoder call folder)
+
+Evaluates `fn(numLit, numLit)` calls in the VM context and replaces them with their result literal, with **corruption guards**: rejects `undefined`, rejects mojibake markers (`�`, `￿`), rejects floats as property keys, rejects non-string results in member-expression object position. The guards are the difference between a clean output and a cascade of garbage.
+
+## Resources
+
+- [GitHub repository](https://github.com/glizzykingdreko/new-datadome-deobfuscator) — source code, issues, releases.
+- [LEARN.md](https://github.com/glizzykingdreko/new-datadome-deobfuscator/blob/main/LEARN.md) — full per-phase walkthrough plus historical fixes log.
+- [README.md](https://github.com/glizzykingdreko/new-datadome-deobfuscator/blob/main/README.md) — install, library use, CLI use, web UI, output shape.
+- [npm package: datadome-deobfuscator](https://www.npmjs.com/package/datadome-deobfuscator) — `npm i datadome-deobfuscator`, Node 18+.
+- [TakionAPI](https://takionapi.tech/) — commercial DataDome solving API, the ready-to-plug companion to this open-source tool.
+
+## Articles (same author)
+
+- [Analyzing DataDome's latest changes](https://medium.com/@glizzykingdreko/analyzing-datadome-latest-changes-424f385bcdd4) — Medium write-up on the most recent obfuscator updates.
+- [Breaking down DataDome captcha WAF](https://medium.com/@glizzykingdreko/breaking-down-datadome-captcha-waf-d7b68cef3e21) — Medium walkthrough of the captcha bundle's structure.
+
+## Related DataDome work (same author)
+
+- [datadome-wasm](https://github.com/glizzykingdreko/datadome-wasm) — the embedded WASM module reverse-engineered standalone.
+- [datadome-encryption](https://github.com/glizzykingdreko/datadome-encryption) — DataDome's request-payload encryption logic, Node.
+- [datadome-encryption-python](https://github.com/glizzykingdreko/datadome-encryption-python) — same encryption logic ported to Python.
+- [Datadome-GeeTest-Captcha-Solver](https://github.com/glizzykingdreko/Datadome-GeeTest-Captcha-Solver) — solver for the GeeTest variant of DataDome's captcha.
+- [Datadome-Movements-Display](https://github.com/glizzykingdreko/Datadome-Movements-Display) — visualizer for the mouse-movement signals DataDome collects.
+
+Older DataDome repos, kept for historical reference but **superseded by this one**:
+
+- [Datadome-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Deobfuscator) (Oct 2023, outdated)
+- [Datadome-Interstitial-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Interstitial-Deobfuscator) (Jan 2024, outdated)
+- [Datadome-Captcha-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Captcha-Deobfuscator) (Jan 2024, outdated)
+- [Datadome-Interstital-Encryptor](https://github.com/glizzykingdreko/Datadome-Interstital-Encryptor) (outdated)
+
+## Related work, other antibot vendors (same author)
+
+- [akamai-script-patcher](https://github.com/glizzykingdreko/akamai-script-patcher) — Akamai bot-management script deobfuscator + integrity-check patcher.
+- [akamai-v3-deobfuscator](https://github.com/glizzykingdreko/akamai-v3-deobfuscator) — Akamai v3 sensor data trace and reconstruction.
+- [akamai-v3-tools](https://github.com/glizzykingdreko/akamai-v3-tools) — Akamai v3 sensor data encrypt / decrypt web UI.
+
+## Author
+
+[glizzykingdreko](https://github.com/glizzykingdreko), reverse engineer and security researcher. Founder of TakionAPI.
+
+- GitHub: https://github.com/glizzykingdreko
+- Twitter: https://mobile.twitter.com/glizzykingdreko
+- Medium: https://medium.com/@glizzykingdreko
+- Email: glizzykingdreko@protonmail.com
+
+## License
+
+MIT.
+
+---
+
+# README.md
+
+# datadome-deobfuscator
+
+Babel AST-based deobfuscator for DataDome's client-side bundles. Drop in the captcha or interstitial script, get clean readable modules back. On both reference inputs the pipeline currently produces zero residual decoder calls, zero mojibake, and zero unflattened state machines.
+
+> Live demo coming soon. The same dashboard runs locally with `npm run dev`.
+
+## table of contents
+
+- [what gets deobfuscated](#what-gets-deobfuscated)
+- [the pipeline, condensed](#the-pipeline-condensed)
+- [install](#install)
+- [use it as a node module](#use-it-as-a-node-module)
+- [use it as a cli](#use-it-as-a-cli)
+- [use it as a web ui](#use-it-as-a-web-ui)
+- [output shape](#output-shape)
+- [project structure](#project-structure)
+- [what's not supported](#whats-not-supported)
+- [related work](#related-work)
+- [further reading](#further-reading)
+- [license & author](#license--author)
+
+## what gets deobfuscated
+
+Two bundle shapes ship today: **captcha** (the soft-challenge page) and **interstitial** (the full block page). Both arrive as a single minified file that DataDome assembles from internal modules at build time. After the pipeline runs you get those modules back as separate files, each one beautified and stripped of the obfuscation noise.
+
+What the captcha bundle looks like before:
+
+```js
+!function(e,B,s){var R=...}({1:[function(M,Q,U){var i=...}, {...}], 2:[...], ...})
+```
+
+What you get after:
+
+```
+output/captcha/
+  captcha.js
+  vm-obf.js
+  bean.js
+  hash.js
+  helpers.js
+  main.js
+  mouseMaths.js
+  picasso.js
+  slidercaptcha.js
+```
+
+Same source, just no longer designed to make you suffer.
+
+## the pipeline, condensed
+
+DataDome stacks a fairly standard set of AST-level tricks. None of them are individually novel, but together they make a manual read miserable: **t-matrix indirection**, **custom-alphabet base64 decoders**, **switch-case state machines**, **MBA opaque predicates**, **decoy for-inits**, **hex-encoded strings**, and decoders nested deep inside closures so you can't find them with a top-level grep.
+
+It's pretty strange that a company funded with the kind of money DataDome has still ships a script you can break with two thousand lines of Babel passes, but here we are.
+
+The pipeline runs in eight phases:
+
+1. **Hex and bracket cleanup.** `\x48\x65\x6c\x6c\x6f` becomes `"Hello"`, `obj[['key']]` becomes `obj['key']`.
+2. **Module separation.** Detects which bundle shape lives at `program.body[0]` and splits the IIFE / function body into per-module ASTs. Captcha is a browserify-style `!function(e,B,s){...}({...})`, interstitial is a `(function(){ var e={...}; ... })()`.
+3. **T-matrix resolution.** DataDome precomputes a 2D array whose cells are references to row-arrays, then uses `<matrix>[x][y]` everywhere as case values and table keys. The pass extracts the `var e = (function(){...})()` IIFE that builds it, runs that IIFE in a Node `vm` context, and rewrites every `e[x][y]` lookup to the small integer it actually represents.
+4. **VM-based string cleaning.** Phases 1 through 7 plus the recursive harvest. Phase 3.5 walks the *entire* AST to grab pure MBA helpers and decoder-like functions sitting deep inside `function I(){...}`, sorted shallowest-wins to avoid clobbering top-level helpers with inner shadows. Phase 4 then folds every `fn(numLit, numLit)` call to its result, with corruption guards that reject `undefined`, mojibake, floats-as-property-keys, and other broken outputs. The guards are the difference between a clean output and a cascade of garbage downstream.
+5. **Iterative passes.** T-matrix replacement, conditional and expression simplification, if-statement folding, opaque-predicate folding. Up to 10 rounds, until nothing changes.
+6. **Opaque-predicate folding (MBA).** DataDome wraps predicates in Mixed Boolean-Arithmetic expressions like `-3*(F&-881) + 1*~(F&o) + ... > -388`. The pass samples each one across 20+ random integer assignments. If it's invariant, replace with the literal. If it's linear, fit `a*x + b*y + c` over 40+ samples and emit the simpler form.
+7. **Switch-case unflattening, twice.** `for (r = N; true;) { switch (r) { case X: ...; r = Y; continue; ... } }` is flattened back into linear code. The first run handles straightforward cases. Then unused-variable removal strips the decoy for-inits DataDome pads in (`for (var eA = 544; true;)` where `eA` is never used and the real state lives in `r`), and the second run picks up whatever was hiding behind those decoys.
+8. **Codegen.** One file per separated module, written to disk.
+
+For the full per-phase walkthrough, the rationale behind each guard, and the historical fixes log, see [LEARN.md](./LEARN.md).
+
+## install
+
+```bash
+npm install datadome-deobfuscator
+```
+
+Node 18 or newer. No native deps.
+
+## use it as a node module
+
+```js
+const fs = require('fs');
+const { deobfuscate } = require('datadome-deobfuscator');
+
+const source = fs.readFileSync('captcha.js', 'utf8');
+const result = deobfuscate(source, { logLevel: 'INFO' });
+
+console.log(result.bundleType);             // 'captcha' | 'interstitial' | 'unknown'
+console.log(result.moduleOrder);            // ['captcha', 'vm-obf', 'bean', ...]
+console.log(result.stats.reductionPercent); // '12.33%'
+
+for (const [name, code] of Object.entries(result.modules)) {
+  fs.writeFileSync(`out/${name}.js`, code);
+}
+```
+
+The result object:
+
+| field | type | what it is |
+|---|---|---|
+| `bundleType` | string | `'captcha'`, `'interstitial'`, or `'unknown'` |
+| `modules` | object | `{ moduleName: deobfuscatedSource }` |
+| `moduleOrder` | string[] | original emission order |
+| `dynamic_challenge` | string \| null | the bit-twiddle expression DataDome computes per session for its request signature |
+| `wasm` | object \| null | extracted wasm payload + helper metadata |
+| `stats` | object | `{ original, deobfuscated, reduction, reductionPercent }` |
+| `warnings` | array | non-fatal issues |
+| `errors` | array | fatal issues with `code` and `message` |
+| `report` | object | structured report for downstream tooling |
+
+Options:
+
+| option | default | meaning |
+|---|---|---|
+| `logLevel` | `'INFO'` | `'DEBUG' \| 'INFO' \| 'WARN' \| 'ERROR' \| 'NONE'` |
+| `logger` | (built-in) | bring your own Logger instance, overrides `logLevel` |
+| `maxPasses` | `10` | iterative-pass cap |
+| `generatorOptions` | (none) | forwarded to `@babel/generator` |
+
+## use it as a cli
+
+```bash
+# direct
+npx datadome-deobfuscate input.js out/
+
+# with a structured report on the side
+npx datadome-deobfuscate input.js out/ --report out/report.json
+```
+
+Flags:
+
+| flag | meaning |
+|---|---|
+| `--report <path>` | writes the full structured report (timestamp, per-module status, stats, errors, warnings) |
+| `--log-level <LEVEL>` | `DEBUG \| INFO \| WARN \| ERROR \| NONE`, default `INFO` |
+| `--no-delimiter` | suppresses the `===DEOBFUSCATOR_RESULT===` line on stdout |
+| `-h`, `--help` | usage |
+
+Exit codes:
+
+| code | meaning |
+|---|---|
+| 0 | clean run, no errors (warnings tolerated) |
+| 1 | fatal error: bad input, parse failure, or unexpected crash |
+| 2 | finished, but at least one module recorded errors |
+
+The line right after `===DEOBFUSCATOR_RESULT===` on stdout contains the same JSON the `--report` flag writes to disk. That's the contract for downstream tooling that wants to scrape the output without writing files:
+
+```python
+report = json.loads(
+    out.split('===DEOBFUSCATOR_RESULT===', 1)[1].strip().splitlines()[0]
+)
+if report['status'] != 'success':
+    for e in report['errors']:
+        print(e['message'])
+```
+
+Suppress the delimiter with `--no-delimiter` if you don't want it in the stdout stream.
+
+## use it as a web ui
+
+The repo doubles as a Vercel-deployable dashboard. Drop a captcha or interstitial file in the browser, watch the pipeline run, get the modules back as a zip.
+
+Locally:
+
+```bash
+git clone https://github.com/glizzykingdreko/new-datadome-deobfuscator
+cd new-datadome-deobfuscator
+npm install
+npm run dev
+# → http://localhost:3000
+```
+
+Production:
+
+```bash
+npm i -g vercel
+vercel deploy
+```
+
+The dashboard is built in an IDE / Nothing-style aesthetic: black background, dot-grid texture, monospace everywhere, single red accent. What it actually does:
+
+- **Drag-and-drop or click to browse** for a `.js` file.
+- **Real-time NDJSON log streaming** while the pipeline runs. The deobfuscator runs in a `worker_thread` and streams Logger calls out via `parentPort.postMessage` as they happen, so the UI sees per-phase progress live, not buffered until the end.
+- **Syntax-highlighted output** via Prism, with a custom theme that matches the dashboard palette. Highlighting is skipped past 250KB so a 400KB module doesn't freeze the UI.
+- **Logs saved** alongside the modules in the zip download (`logs.txt` and `logs.json`), or grabbed standalone via the `save .txt` button in the console panel.
+- **Editor is viewport-locked**: the page itself never scrolls. The code panel scrolls inside itself, and the **dynamic_challenge** + **wasm payload** accordions stay visible at the bottom without hunting.
+
+## output shape
+
+| bundle | modules emitted |
+|---|---|
+| **captcha** | `captcha`, `vm-obf`, `bean`, `hash`, `helpers`, `main`, `mouseMaths`, `picasso`, `slidercaptcha` |
+| **interstitial** | `reloader`, `interstitial`, `obfuscate`, `helpers`, `vm-obf`, `localstorage`, `main` |
+
+Plus, when present:
+
+- `dynamic_challenge`: the bit-twiddle expression DataDome computes per session for its request signature.
+- `wasm`: the embedded wasm module's bytes plus extracted helper metadata (provider name, window attributes touched, fields produced).
+
+## project structure
+
+```
+deobfuscator/
+  lib/index.js                Public Node.js API. deobfuscate(source, options).
+  bin/cli.js                  CLI entry point.
+  api/deobfuscate.js          Vercel serverless function. Streaming + non-streaming.
+  api/deobfuscate-worker.js   Worker thread that runs the pipeline and streams logs.
+  server.js                   Local dev server. Serves public/, routes /api/deobfuscate.
+  public/                     Web UI. index.html, styles.css, app.js.
+  transformers/
+    index.js                  Pipeline runner.
+    captcha.js                Bundle-shape detection + module separation.
+    preprocessing/index.js    Phases 1 through 7 + recursive harvest.
+    transformations/          One file per pass: t-matrix, switch-case, opaque-predicates, ...
+    extractDynamicChallenge.js
+    extractWasm.js
+    extractWasmChallengeFields.js
+  input/                      Reference obfuscated bundles.
+  output/                     Reference deobfuscated output.
+  LEARN.md                    Per-phase walkthrough + historical fixes log.
+  CLAUDE.md                   Agent instructions for this codebase.
+```
+
+## what's not supported
+
+Tags / jstag was supported in v1 but **removed in v2.0** to keep the scope tight. The two bundles that actually ship to clients today, captcha and interstitial, are what this tool deobfuscates. The tags bundle changes shape often enough that I didn't want it dragging the rest of the pipeline down.
+
+If you need tags support, fork v1.x or open an issue. Or, you know, send me a PR :P
+
+## related work
+
+Other DataDome work I've published, all open-source:
+
+- [datadome-wasm](https://github.com/glizzykingdreko/datadome-wasm): the embedded WASM module reverse-engineered standalone.
+- [datadome-encryption](https://github.com/glizzykingdreko/datadome-encryption): DataDome's request-payload encryption logic, Node.
+- [datadome-encryption-python](https://github.com/glizzykingdreko/datadome-encryption-python): same encryption logic ported to Python.
+- [Datadome-GeeTest-Captcha-Solver](https://github.com/glizzykingdreko/Datadome-GeeTest-Captcha-Solver): solver for the GeeTest variant of DataDome's captcha.
+- [Datadome-Movements-Display](https://github.com/glizzykingdreko/Datadome-Movements-Display): visualizer for the mouse-movement signals DataDome collects.
+
+Older repos, kept for reference but **superseded by this one**:
+
+- [Datadome-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Deobfuscator) (Oct 2023, outdated)
+- [Datadome-Interstitial-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Interstitial-Deobfuscator) (Jan 2024, outdated)
+- [Datadome-Captcha-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Captcha-Deobfuscator) (Jan 2024, outdated)
+- [Datadome-Interstital-Encryptor](https://github.com/glizzykingdreko/Datadome-Interstital-Encryptor) (outdated)
+
+Other antibot vendors, same pattern:
+
+- [akamai-script-patcher](https://github.com/glizzykingdreko/akamai-script-patcher): Akamai bot-management script deobfuscator + integrity-check patcher.
+- [akamai-v3-deobfuscator](https://github.com/glizzykingdreko/akamai-v3-deobfuscator): Akamai v3 sensor data trace and reconstruction.
+- [akamai-v3-tools](https://github.com/glizzykingdreko/akamai-v3-tools): Akamai v3 sensor data encrypt / decrypt web UI.
+
+## further reading
+
+- [LEARN.md](./LEARN.md): the deep dive. Per-phase rationale, the obfuscation patterns DataDome stacks, the corruption guards in Phase 4, the recursive harvest, the switch-case red-herring for-init handling, the post-processing extractors, and the fixes log.
+- [Analyzing DataDome's latest changes](https://medium.com/@glizzykingdreko/analyzing-datadome-latest-changes-424f385bcdd4): Medium write-up on the most recent obfuscator updates.
+- [Breaking down DataDome's captcha WAF](https://medium.com/@glizzykingdreko/breaking-down-datadome-captcha-waf-d7b68cef3e21): Medium walkthrough of the captcha bundle's structure.
+
+## license & author
+
+MIT. Author: **glizzykingdreko**.
+
+- [GitHub](https://github.com/glizzykingdreko)
+- [Twitter](https://mobile.twitter.com/glizzykingdreko)
+- [Medium](https://medium.com/@glizzykingdreko)
+- [Email](mailto:glizzykingdreko@protonmail.com)
+- [Buy me a coffee ❤️](https://www.buymeacoffee.com/glizzykingdreko)
+- [TakionAPI](https://takionapi.tech)
+
+---
+
+This repo is the open-source companion to **TakionAPI's DataDome solving API**. If you don't want to wire up the full bypass yourself, [TakionAPI](https://takionapi.tech) ships a ready-to-plug solver with a real SLA. Same target, different tradeoff.
+
+---
+
+# LEARN.md
+
+# DataDome Deobfuscation — Captcha, Interstitial, Tags
+
+This document explains how the deobfuscator reverses DataDome's three client-side scripts — **captcha**, **interstitial**, and **tags** — and the specific fixes that make it work across all three.
+
+Audience: anyone maintaining or extending the deobfuscator. Assumes familiarity with Babel AST and the DataDome stack.
+
+---
+
+## 1. The three bundles
+
+DataDome ships three client-side scripts with *different* obfuscation shapes. A single pipeline can't blindly apply the same transforms — each shape hides its decoders in a different place.
+
+| Bundle | Shape | Decoders live in | Matrix obfuscation |
+|---|---|---|---|
+| **Captcha** | Webpack/Browserify IIFE — `!function(e,B,s){ ... }({ 1:[fn,deps], ... })` | Module-local helpers `C`, `Q`, `Z`, `c`, `D`, `E` at module top level | `var e = (function(){…return c[34]})()` — precomputed |
+| **Interstitial** | Anonymous IIFE — `(function(){ var e={…modules…}; … })()` | Same style as captcha | Same |
+| **Tags** | Single-variable IIFE — `var DataDomeJsTag = (() => { … })()` | Deeply nested helpers `K`, `M`, `rn`, `cn`, `hn`, `T`, `R`, `D`, `N` inside the closure | `E = []; E[O][i] = E[hash(O, i) & 31]; g = E[26]` — setTimeout-scheduled |
+
+Everything past step 1 (module separation) looks roughly the same — it's the entry shape and the decoder location that diverge.
+
+---
+
+## 2. Pipeline overview
+
+```
+Input .js
+   │
+   ▼
+Parse → AST
+   │
+   ▼
+decodeHexStringsInAst         ← inline \xNN literals to the bytes they encode
+cleanDoubleBracketProps       ← `obj[['key']]` → `obj['key']`
+   │
+   ▼
+scorporateCaptchaModules      ← detect bundle shape, split into per-module ASTs
+   │
+   ▼
+┌──────────────────────────┐
+│  For each module:         │
+│    generateTMap           │   ← build `<matrix>[x][y] → stateNumber` map
+│    deobfuscate():         │
+│      • preprocessing      │   ← simplify binaries, clean strings, fold calls
+│      • iterative passes   │   ← t-matrix, conditionals, expressions, if-stmts
+│                              ← opaque predicates (MBA folding)
+│      • switch-case unflatten
+│      • unused-var removal │
+│      • switch-case pass 2 │   ← catches state machines unmasked by var-removal
+└──────────────────────────┘
+   │
+   ▼
+Generate code per module → write files
+```
+
+Entry point: [`main.js`](main.js)
+Module splitter: [`transformers/captcha.js`](transformers/captcha.js)
+Matrix resolver: [`transformers/index.js`](transformers/index.js) — `generateTMap`
+Iterative passes: [`transformers/preprocessing/index.js`](transformers/preprocessing/index.js) and [`transformers/transformations/`](transformers/transformations/)
+
+---
+
+## 3. Captcha and Interstitial
+
+### 3.1 Module separation
+
+`scorporateCaptchaModules` ([captcha.js:193](transformers/captcha.js)) detects which shape is at `program.body[0]`:
+
+- **Captcha** — `UnaryExpression(!, CallExpression(FunctionExpression, [moduleObject]))`
+- **Interstitial** — `CallExpression(FunctionExpression{body: [VariableDeclaration(ObjectExpression)]})`
+- **Tags** — `VariableDeclaration(CallExpression(ArrowFunctionExpression|FunctionExpression))`
+
+For captcha/interstitial, the module object `{1: [fn, deps], 2: [fn, deps], …}` is unrolled and each module's function body becomes its own AST. Deps are used to name files (`./captcha`, `./picasso`, `./hash`, etc.).
+
+### 3.2 T-matrix obfuscation
+
+Both captcha and interstitial precompute a 128×512 matrix and alias one row to a variable (typically `e`). Every state-machine `case` in the code is written as `case e[X][Y]:` where `(X, Y)` indirects through the matrix to a small state number.
+
+```js
+var e = function (A) {
+  var w, B, c = [];
+  for (w = 0; w < 128; w++) c[w] = new Array(512);
+  for (B = 0; B < 512; B++) for (A = 0; A < 128; A++)
+    c[A][B] = c[jA(A, 34, 577, B, 401, 691, 128)];
+  return c[34];
+}();
+```
+
+After execution, every cell of `e` points to one of only 32 unique row-arrays. `generateTMap` runs this IIFE in a VM, walks the resulting `e`, and assigns each unique reference a state counter. Result: `tMap["e[248][513]"] = 7` (or whatever counter).
+
+`replaceTMatrix` ([transformations/t-matrix.js](transformers/transformations/t-matrix.js)) then walks the AST and rewrites `e[X][Y]` → `NumericLiteral(tMap["e[X][Y]"])`.
+
+Once every `case e[X][Y]:` has been rewritten to `case N:`, the switch-case unflattener can follow state transitions.
+
+### 3.3 Custom base64 decoders: `C` and `Q`
+
+Both bundles hide their string tables behind two decoders:
+
+```js
+function Q(A) { var w = t[A]; return atob(w); }             // standard base64
+function C(A) {
+  var w = a[A];
+  return typeof w === "string" ? (function(A, …){
+    // base64 decode using a *custom* alphabet
+    var g = i(48) + i(81) + "pmzW3" + i(82) + "a" + i(Z(87, 3)) + … + "g";
+    // … decode ...
+  })(w) : w;
+}
+```
+
+The custom alphabet `g` is constructed from `i(N)` (String.fromCharCode) calls interleaved with string literals. Some positions call MBA helpers like `Z(87, 3)` (= 90 = `Z`) and `E(98, 103)` (= 98 = `b`). If *any* of those helpers produces the wrong value, the alphabet is wrong and every decode produces mojibake.
+
+### 3.4 MBA helpers
+
+Pure bit-arithmetic helpers like:
+
+```js
+function c(A, w) { return w + -10 * A - 11 - 11 * ~A; }
+function E(A, w) { return -w + A - 1 - 1 * ~w; }
+function Z(A, w, B, c) { return 2*(w&A) + 1*(w|~A) - 1*~(w&(c=~A)) + 2*~(w|c); }
+```
+
+These are constant-returning for their input — `c(88, 29) === 117` regardless of external state. They're loaded into the VM context and used by Phase 4 to fold any `c(numLit, numLit)` → numeric literal.
+
+---
+
+## 4. Tags
+
+### 4.1 Different shape, different problems
+
+Tags doesn't use a module bundler. The entire script is wrapped in a single IIFE:
+
+```js
+var DataDomeJsTag = (() => {
+  function n(n) { /* esModule interop */ }
+  var Tn, Cn, t, i, k, v, D = {};
+  function Gn(n) { /* typeof helper */ }
+  function I() {
+    // main initializer — hundreds of lines
+    // nested inside it, deeply:
+    //   function K(n) { n = tn[n]; return atob(n); }
+    //   function M(n, t) { if(typeof(t=en[n])!=="string")return t; /* custom b64 */ }
+    //   function T(n, t) { return 2*(t&n) + ...; }    ← MBA helper
+    //   function rn, cn, hn, D, N, un, sn, R, …        ← more MBA helpers
+    //   var tn = ["Y2VpbA","cGFyc2VJbnQ",…];          ← base64 table
+    //   var en = ["Munb8xn+", 750, 617, …];           ← mixed-type table
+  }
+  // …
+})();
+```
+
+So two immediate problems:
+
+1. **Module separation doesn't find a bundler IIFE.** `findModuleBundlerIndex` was extended to detect `VariableDeclaration(CallExpression(ArrowFunctionExpression))` and emit a single-module bundle named `jstag`.
+2. **Decoders are deeply nested.** Phase 2's existing logic walks only `program.body[1]`; it never sees `K`, `M`, `tn`, `en`. Without them in the VM context, Phase 4 can't fold any `M(3)` / `K(0)` / `rn(98, 167)` call, and the downstream state machines never resolve their case labels.
+
+### 4.2 Phase 3.5 — recursive harvest
+
+**New phase** ([preprocessing/index.js:663](transformers/preprocessing/index.js)) that walks the *entire* AST (not just the top level) and harvests:
+
+- **Pure MBA helpers** — functions whose body is a single `return` of a pure arithmetic/bitwise expression. Multiple same-named declarations are sorted **deepest-first** and loaded in that order so the shallowest version wins. (See §6.1 for why this matters.)
+- **Decoder-like functions** — functions with no `this` / `new` / `try` / self-recursion. Only loaded when the name isn't already in context (avoids clobbering top-level helpers from Phase 2).
+- **Array-init variable declarations** — `var foo = [many literals]`. Also only loaded when the name isn't taken (avoids clobbering `function c(A,w)` with a nested `var c = […]` inside a `for`-init).
+
+The net effect: captcha/interstitial keep Phase 2's top-level loading, tags gets its deeply-nested decoders promoted to the VM's globals, and neither bundle clobbers the other.
+
+### 4.3 Tags matrix: the `g[x][y]` fallback
+
+Tags builds its state-machine matrix very differently from captcha. No IIFE — instead a `setTimeout`-scheduled loop:
+
+```js
+E = [];
+for (S = 0; S < 32; S++) E[S] = new Array(256);
+for (p = 0; true; p++) (e => {
+  n(function () {
+    for (var i = 32*e, t = Math.min(i+32, 256); i < t; i++)
+      for (O = 0; O < 32; O++)
+        E[O][i] = E[(929*i ^ 103*O ^ 5798) >>> 0 & 31];
+  });
+})(p);
+g = E[26];
+```
+
+After population, every cell of `E[O][i]` is a *reference* to one of the 32 rows. `g = E[26]` is itself a 256-element row whose cells are row references — so `g[x][y]` is another row reference, and each unique reference is one of only 32 distinct arrays.
+
+**Fix:** `tryTagsMatrixFallback` in [`transformers/index.js`](transformers/index.js) detects this pattern by searching for an assignment `X[O][i] = X[<expr>]`, extracts the matrix name/size/hash expression and the target-row assignment `g = X[K]`, synthesizes a bounded equivalent loop, runs it in a VM, and builds the same `tMap["g[x][y]"] = stateNumber` shape that `replaceTMatrix` consumes. No other pipeline change is needed — the existing t-matrix replacer works unmodified.
+
+### 4.4 `setTimeout(fn, 0)` control flow
+
+Tags decorates plain initialization with `setTimeout(…, 0)` wrappers as a control-flow obfuscation:
+
+```js
+setTimeout(function () { t = 26; }, 0),
+setTimeout(function () { z = -192; }, 0),
+setTimeout(function () { i = -172; }, 0)
+```
+
+A dedicated preprocessing step ([transformations/inline-settimeout.js](transformers/transformations/inline-settimeout.js)) unwraps these to their bodies: `t = 26, z = -192, i = -172`. Timers with non-zero delays are preserved (they're genuine async scheduling).
+
+---
+
+## 5. Phase 4 — the decoder call folder
+
+The core of string recovery. Walks every `CallExpression` and, when the callee is an Identifier in the VM context and every argument is a numeric literal (including `-N` forms), evaluates the call and replaces it with a literal.
+
+### 5.1 Why it's the critical phase
+
+Every cascade failure starts here. If `c(88, 29)` doesn't fold to `117`:
+- `i(c(88, 29))` can't fold to `"u"`
+- The custom base64 alphabet `g` is wrong
+- `C(N)` produces garbage
+- `I[C(N)]` becomes `I[garbage]` which is bad syntax
+- For-loop inits like `for (r = e[376][C(c(694, 305))]; true;)` stay obfuscated
+- Switch-case state machines can't read their initial state
+- All state-machine flattening fails for that block
+
+A single broken helper can leave hundreds of switch-cases unresolved.
+
+### 5.2 Guards against bad inlines
+
+Phase 4 ([preprocessing/index.js:818](transformers/preprocessing/index.js)) has several rejection rules that prevent garbage from reaching the output:
+
+| Guard | Why |
+|---|---|
+| `dec === undefined` | The decoder hit a missing table entry. Inlining `undefined` corrupts everything downstream (e.g., `I[undefined]`). |
+| String contains `\uFFFD` or `\uFFFF` | Mojibake — an alphabet corruption produced invalid bytes. |
+| Long string (>8 chars), mostly non-printable | Garbage. Short strings with a few high bytes are legit opaque keys. |
+| Empty string in computed-member-property slot | `obj[""]` / `obj[""](x)` is meaningless syntax. Allowed elsewhere (RegExp flags, etc.). |
+| Non-integer / negative / huge number in property slot | Prevents `obj[-2051.61]` — the decoder meant a string key, got a number. |
+| `typeof dec === "object" && dec !== null` | Don't inline arrays/objects as literals. |
+| `typeof dec === "function"` | Never inline function references. |
+| `path.parentPath.node.object === path.node` | Don't let a numeric result replace the *object* of a member expression. |
+
+Failures are cached by call text so we never retry `C(118)` after it's failed once.
+
+### 5.3 Watchdogs
+
+Two safety rails for pathological cases:
+
+- **`TOTAL_FAILURE_LIMIT` = 100000** — absolute panic brake. Legitimate captcha workloads produce ~150 cheap throws across all modules; we never approach this.
+- **`vm.runInContext({timeout: 50})`** — each call has a 50ms timeout in case something recurses or loops.
+
+---
+
+## 6. The fixes that made it all work
+
+Several bugs were discovered and resolved during development. Each one blocked a chain of downstream passes.
+
+### 6.1 Same-name pure helpers at different depths
+
+**Symptom:** captcha's `C(N)` calls produced mojibake (`"Obje\uFFFF\xF4"` instead of `"Object"`).
+
+**Cause:** two `function E(…)` declarations in the captcha module:
+
+```js
+function E(A, w) { return -w + A - 1 - 1 * ~w; }   // top-level, the MBA helper
+// … 1500 lines later, nested inside another function …
+function E(A) { return A > 37 ? 59 + A : A > 11 ? 53 + A : A > 1 ? 46 + A : 50 * A + 45; }
+```
+
+Both pass the "pure helper" shape test. When Phase 3.5 traversed the AST, the nested one was loaded last and won in the VM context. `E(98, 103)` then returned `157` instead of `98`, so `String.fromCharCode(E(98, 103))` put `\u009D` into the custom base64 alphabet where `b` was supposed to be. Every `C()` call downstream produced garbage.
+
+**Fix:** sort harvested pure helpers by nesting depth, deepest first, so the shallowest declaration overwrites everything else in the context. [preprocessing/index.js:758](transformers/preprocessing/index.js)
+
+### 6.2 Red-herring for-init declarations
+
+**Symptom:** captcha's state machines in `catch (w) { r = 124; for (; true;) switch (r) {…} }` weren't being flattened.
+
+**Cause:** the obfuscator pads some for-inits with an unused declaration to confuse the unflattener:
+
+```js
+for (var eA = 544; true;) {       // <-- `eA` is never used; `r` is the real state
+  switch (r) { /* state machine */ }
+}
+```
+
+`getInitialState` only looked at the for-init; since `r` isn't declared there, it returned `null` and the whole state machine was skipped.
+
+**Fix:** when the for-init is a VariableDeclaration that doesn't touch the state variable, fall through to the "look above the loop" scan. Also run the unflattener *twice* — once normally, once after `removeUnusedVariables` strips the red herrings. [transformations/switch-case.js:114](transformers/transformations/switch-case.js), [transformers/index.js:162](transformers/index.js)
+
+### 6.3 Nested array declarations overwriting globals
+
+**Symptom:** `c(694, 305)` stopped resolving in captcha.
+
+**Cause:** Phase 3.5 was promoting *every* array-init `VariableDeclaration` in the AST to global scope — including a nested `for (var c = [C(948), 'bitness', …], n = [], g = 0; …)`. That synthesized `var c = [C(948), …]` at the global level in the VM, replacing `context.c` (the pure MBA helper function) with an array. Every subsequent `c(N, M)` call returned `undefined` because array-index access gives no result for non-existent numeric keys.
+
+**Fix:** array harvesting now skips any name that's already bound in context, mirroring the decoder-skip logic. [preprocessing/index.js:780](transformers/preprocessing/index.js)
+
+### 6.4 Non-terminating decoder evaluations
+
+**Symptom:** captcha deobfuscation hung indefinitely, logging thousands of "Maximum call stack size exceeded" errors per second.
+
+**Cause:** Phase 3.5 would harvest *every* `FunctionDeclaration`, including ones that were legitimately recursive (deep helpers that pass some state between invocations). Phase 4 would then evaluate calls to them with arbitrary numeric arguments, triggering stack overflows for most inputs. Every pass of Phase 4 retried every call site, so the errors accumulated.
+
+**Fix:**
+- `isPureHelper` / `isDecoderLike` reject functions with `try/catch`, `new`, `this`, or direct self-recursion.
+- Phase 4 caches failures by call-text so each distinct call is attempted at most once.
+- `TOTAL_FAILURE_LIMIT` watchdog aborts the loop if the pipeline ever hits catastrophic runaway. [preprocessing/index.js:818](transformers/preprocessing/index.js)
+
+### 6.5 Number as property key
+
+**Symptom:** output contained expressions like `'InnerErr: ' + w[-2051.61]`.
+
+**Cause:** a decoder returned a floating-point number for an invalid index and Phase 4 happily inlined it into `w[<call>]`, turning a runtime property access into `w[-2051.61]`.
+
+**Fix:** when the result is a number and we're replacing the `property` of a computed member expression, only allow non-negative integers ≤ 2³¹−1. Floats, negatives, and out-of-range integers are cached as failures instead. [preprocessing/index.js:893](transformers/preprocessing/index.js)
+
+### 6.6 Native functions overridden by nested pure-helper lookalikes
+
+**Symptom:** interstitial's `n(N)` calls produced mojibake with `\uFFFC` / `\uFFFF` chars, just like the earlier captcha bug.
+
+**Cause:** interstitial's custom base64 decoder builds its alphabet from `c(N)` calls where `c = String.fromCharCode` (assigned at top level). Phase 2 loaded `context.c = String.fromCharCode` correctly. Then Phase 3.5 found a deeply nested `function c(A) { return A > 37 ? 59 + A : … }` — which passes the pure-helper shape test — and overwrote `context.c` with it. Every `c(83)` that should have returned `"S"` returned `142` instead, scrambling the alphabet and producing mojibake for every decoded string.
+
+The earlier depth-ordering fix didn't help here because the native `String.fromCharCode` isn't a FunctionDeclaration — it's just bound at runtime via `var c = String.fromCharCode`. No top-level `function c(…)` exists to win the depth comparison.
+
+**Fix:** before loading a pure helper, check if `context[name]` is already a native function (via `Function.prototype.toString` → `[native code]` check). If so, skip. This preserves `String.fromCharCode`, `atob`, and any other native aliased by `var x = <native>`. [preprocessing/index.js:764](transformers/preprocessing/index.js)
+
+### 6.7 String-returning calls in member-expression object position
+
+**Symptom:** interstitial had `n(1093).concat(g.message)`, `n(1096).concat(…)`, etc. where `n(1093)` should fold to `"l:"`, `n(1096)` to `"w:"`, but the calls stayed.
+
+**Cause:** Phase 4 had a blanket guard "don't inline if this call is the `object` of a member expression". The rationale was preventing `t[x][y]` from turning into `42[y]` when `t[x]` resolved to a number. But the guard was too broad — strings are fine there: `"l:".concat(msg)` is perfectly valid JS.
+
+**Fix:** narrow the guard to reject only when the result is a non-string (number, boolean, null, undefined). Strings pass through. [preprocessing/index.js:897](transformers/preprocessing/index.js)
+
+### 6.8 Opaque MBA predicates
+
+**Symptom:** comparisons like `-3*(F&-881) + 1*~(F&o) - 4*~(F|o) - 2*~(F|-881) + -2643 > -388` littered the output even after constant folding.
+
+**Cause:** these are *obfuscated* predicates — DataDome writes an arithmetically-elaborate expression that (after substitution) collapses to something simple like `F - 880 > -388`. Ordinary constant folding can't see that because the variables are live.
+
+**Fix:** new pass `foldOpaquePredicates` ([transformations/opaque-predicates.js](transformers/transformations/opaque-predicates.js)) that:
+1. Collects free identifiers in a pure-arithmetic subtree.
+2. Pins any that are `var X = literal` bindings from the scope.
+3. Samples 10–30 random 32-bit integers for the rest.
+4. If every trial produces the same value → replace with that literal.
+5. Otherwise tries linear-fit: fits `a*x + b*y + c` to the expression over 40 sample points. If the fit matches exactly, emit the simpler linear form.
+
+Catches both *strictly* opaque predicates (MBA noise around `< 500` that's always true) and MBA-obfuscated arithmetic that has a simpler linear form.
+
+---
+
+## 7. Output quality invariants
+
+A healthy deobfuscation run produces output with:
+
+- **Zero** `\xNN` or `\uNNNN` escape sequences (mojibake indicator)
+- **Zero** `for (; true;) { switch (X) { … } }` state machines with resolvable initial state
+- **Zero** `obj[""]`, `obj[""](…)`, or `obj[-N.NN]` computed member accesses
+- **Zero** `undefined` in computed property positions
+- Nested `M(x)`, `K(x)`, `C(x)`, `Q(x)` calls only when their decoded result is rejected by the guards (rare — a handful at most per file)
+
+Current numbers on the reference inputs:
+
+| File | Time | Residual decoder calls | Escape sequences | State machines flattened |
+|---|---|---|---|---|
+| captcha-def5678.js | 3.7s | **0** | 0 | 70 |
+| interstitial-af0108e.js | 3.7s | **0** | 0 | 56 |
+| tags-25ba714.js | 3.3s | **0** | 0 | 28 |
+
+---
+
+## 8. Known limitations
+
+- **Decoders with corrupt output** — a handful of captcha indices (`C(118)`, `C(963)`, `C(1034)`, `C(1117)`) legitimately produce opaque byte strings. We keep the call expression in place when the decode looks unsafe; this is correct behavior but loses some readability.
+- **Interstitial `undefined` checks** — runtime comparisons like `undefined !== g` survive (correctly) and account for ~20 `undefined` occurrences in the output.
+- **Tags' `K(8)`** — `tn[8]` is an empty string by design; the empty-string guard keeps the call expression intact in property positions.
+- **Non-numeric-argument decoder calls** — Phase 4 only folds calls with numeric-literal args. Calls like `C(someVar)` where `someVar` isn't constant are left as-is.
+- **For-loop state machines with dynamic initial state** — if the initial state is `R = e[C(D(166, 293))][13]` and some inner call can't resolve, the unflattener skips the loop. Currently 0 such skips across the reference inputs, but could recur with new obfuscator versions.
+
+---
+
+## 9. Debugging a new obfuscator version
+
+When a new version breaks something:
+
+1. **Run with debug logging** — the pipeline prints per-phase counts (`Phase 3.5: harvested 25 pure helpers, 0 decoders (17 skipped), 2/9 arrays`, `Switch-case unflatten: scanned 108, flattened 70, skipped …`).
+
+2. **Check the failure mode** —
+   - *Mojibake in output (`\xFF`, `\uFFFF`):* a pure helper is wrong; same-name collision. Check Phase 3.5 harvest.
+   - *Lots of `C(N)` remaining:* the decoder alphabet is corrupted. Often means a helper returned a wrong value. Run the module through a VM manually and check `context.c(a, b)` etc.
+   - *`for (; true;) { switch (…) }` residuals:* the unflattener couldn't get the initial state. Check for new for-init padding patterns.
+   - *Hangs:* Phase 3.5 harvested a recursive function. Tighten `isHarvestable`.
+
+3. **Verify with a small reproducer** — extract the broken snippet into a standalone file, run the unflattener or Phase 4 on it in isolation, iterate.
+
+The reference test files in `parser/tmp/` are the regression set. If all three stay clean, the pipeline is healthy.

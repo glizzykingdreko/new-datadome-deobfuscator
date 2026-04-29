@@ -1,0 +1,1144 @@
+/* ============================================================
+   datadome / deob — atelier minimal
+   warm ink · cream type · champagne accent · hairlines, no dashes
+   ============================================================ */
+
+:root {
+  --bg:        #0e0c0a;
+  --bg-alt:    #14110d;
+  --bg-raised: #1a1610;
+  --line:      #2a241c;
+  --line-soft: #1f1a14;
+  --fg:        #ece4d6;
+  --fg-dim:    #998c75;
+  --fg-mute:   #6a5e4c;
+  --accent:    #d4b882;
+  --accent-dim:#7a6240;
+  --ok:        #8fb88a;
+  --warn:      #d4a04a;
+
+  --font-ui:   "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-dot:  "Doto", "JetBrains Mono", ui-monospace, monospace;
+
+  --bar-h:     32px;
+  --rail-w:    240px;
+  --radius:    2px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* atelier background: warm ink with the faintest top vignette */
+body {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(212, 184, 130, 0.04), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; }
+
+::selection { background: var(--accent); color: var(--bg); }
+
+/* hidden attr must beat any explicit display:flex / display:grid */
+[hidden] { display: none !important; }
+
+/* ===== Page-wide drag overlay ============================
+   Activated by document-level dragover. Pure feedback: 2px
+   dashed accent inset + a "// drop .js to load" pill at the
+   top. Both pointer-events: none so the underlying drop
+   listener still receives the file. */
+
+body.is-page-dragging::before {
+  content: "";
+  position: fixed;
+  inset: 8px;
+  z-index: 9998;
+  border: 1px solid var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(212, 184, 130, 0.18);
+  pointer-events: none;
+  animation: pageDragGlow 1.6s ease-in-out infinite;
+}
+
+body.is-page-dragging::after {
+  content: "// drop .js to load";
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  animation: pageDragSlide 0.18s ease-out;
+}
+
+@keyframes pageDragGlow {
+  0%, 100% { border-color: var(--accent);            box-shadow: inset 0 0 0 1px rgba(212, 184, 130, 0.18); }
+  50%      { border-color: rgba(212, 184, 130, 0.6); box-shadow: inset 0 0 0 1px rgba(212, 184, 130, 0.04); }
+}
+@keyframes pageDragSlide {
+  from { transform: translate(-50%, -10px); opacity: 0; }
+  to   { transform: translate(-50%, 0);     opacity: 1; }
+}
+
+/* ----- Top + bottom bars ----------------------------------- */
+
+.bar {
+  position: sticky;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--bar-h);
+  padding: 0 14px;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  user-select: none;
+}
+.bar--top    { top: 0;    border-top: 0;    border-left: 0; border-right: 0; }
+.bar--bottom { bottom: 0; border-bottom: 0; border-left: 0; border-right: 0; }
+
+.bar__brand {
+  color: var(--fg);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.bar__sep    { color: var(--fg-mute); }
+.bar__dim    { color: var(--fg-dim); }
+.bar__spacer { flex: 1; }
+
+.bar__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  height: 20px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--fg);
+}
+.bar__dot {
+  width: 7px; height: 7px;
+  background: var(--fg-mute);
+  border-radius: 50%;
+}
+.bar__status[data-state="idle"]    .bar__dot { background: var(--fg-mute); }
+.bar__status[data-state="running"] .bar__dot { background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+.bar__status[data-state="ok"]      .bar__dot { background: var(--ok); }
+.bar__status[data-state="error"]   .bar__dot { background: var(--accent); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes blink { 50% { opacity: 0.25; } }
+
+.bar__link {
+  color: var(--fg);
+  border-bottom: 1px solid var(--line);
+}
+.bar__link:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ----- App shell: explorer rail + editor ------------------- */
+
+/* lock the workspace to the viewport so internal panels scroll, not the page */
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  height: calc(100vh - var(--bar-h) * 2);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* explorer rail */
+.rail {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--line);
+  min-height: 0;          /* allow the file list to scroll inside the rail */
+  overflow: hidden;
+}
+
+.rail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 12px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+.rail__hint { color: var(--fg-mute); text-transform: none; letter-spacing: 0.04em; }
+
+.rail__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.rail__empty {
+  padding: 8px 14px;
+  color: var(--fg-mute);
+  font-size: 12px;
+}
+
+/* file row in explorer (replaces .tab look) */
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 14px 5px 22px;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--fg-dim);
+  transition: background 0.08s, color 0.08s;
+  position: relative;
+  min-width: 0;
+}
+.tab::before {
+  content: "›";
+  position: absolute;
+  left: 8px;
+  color: var(--fg-mute);
+}
+.tab:hover { background: var(--line-soft); color: var(--fg); }
+.tab.is-active {
+  background: var(--bg-raised);
+  border-left-color: var(--accent);
+  color: var(--fg);
+}
+.tab.is-active::before { color: var(--accent); }
+
+/* names ellipsize so the rail can shrink without breaking layout */
+.tab__name {
+  font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab__size {
+  color: var(--fg-mute);
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+.rail__foot {
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ----- Editor area ----------------------------------------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;          /* allow code to overflow correctly */
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ----- Drop pane ------------------------------------------- */
+
+.dropwrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 18px;
+  padding: 60px 48px;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 28px 24px;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  outline: 0;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.drop:hover,
+.drop:focus-visible { border-color: var(--accent-dim); background: var(--bg-raised); }
+.drop.is-dragging   { border-color: var(--accent); background: var(--bg-raised); box-shadow: inset 0 0 0 1px rgba(212, 184, 130, 0.18); }
+
+.drop__line {
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+.drop__line--dim { color: var(--fg-mute); }
+
+.drop__file {
+  margin-top: 14px;
+  font-family: var(--font-dot);
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  word-break: break-all;
+  min-height: 36px;
+}
+.drop__file:empty::before,
+.drop__file:has(*:empty)::before { content: "—"; color: var(--fg-mute); }
+
+.drop__meta {
+  font-size: 11px;
+  color: var(--fg-mute);
+  letter-spacing: 0.04em;
+}
+
+/* actions row */
+.dropwrap__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ----- Buttons --------------------------------------------- */
+
+.btn {
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  user-select: none;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn:disabled            { opacity: 0.4; cursor: not-allowed; }
+
+.btn__caret { color: var(--accent); }
+
+.btn--primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg);
+}
+.btn--primary:hover:not(:disabled) .btn__caret { color: var(--bg); }
+
+.btn--ghost {
+  border-color: var(--line);
+  color: var(--fg-dim);
+}
+
+.btn--mini {
+  padding: 6px 10px;
+  font-size: 11px;
+  width: 100%;
+  justify-content: center;
+}
+
+/* extra-small chip-height button — pairs with .results__chip in the editor header */
+.btn--xs {
+  padding: 0 8px;
+  height: 18px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  gap: 5px;
+}
+.btn--xs .btn__caret {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--accent);
+}
+.btn--xs:hover:not(:disabled) .btn__caret { color: var(--bg); }
+
+/* "copied" / "saved" success flash */
+.btn--xs.is-ok {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+.btn--xs.is-ok .btn__caret { color: var(--bg); }
+
+/* ----- Results --------------------------------------------- */
+
+.results {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;          /* internal panels scroll, not this column */
+}
+
+.results__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+  min-height: 28px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--fg-dim);
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.results__crumb { color: var(--fg); }
+.results__crumb--dim { color: var(--fg-dim); }
+.results__crumb--accent { color: var(--accent); }
+.results__crumb b { font-weight: 700; }
+
+.results__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  height: 18px;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--fg-mute);
+  letter-spacing: 0.06em;
+}
+.results__chip b { color: var(--fg); font-weight: 500; }
+
+/* code panel — has its own scroll area; the *page* never scrolls.
+   flex-grows to fill available room but caps so the meta panels below
+   (console / dynamic_challenge / wasm) are always visible without
+   needing the user to scroll the page. */
+.code {
+  margin: 0;
+  padding: 16px 18px;
+  background: var(--bg);
+  color: #d8d8d8;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow: auto;
+  white-space: pre;          /* don't wrap source code */
+  flex: 1 1 0;
+  min-height: 200px;
+  max-height: 60vh;
+  border-bottom: 1px solid var(--line);
+}
+.code::-webkit-scrollbar        { width: 10px; height: 10px; }
+.code::-webkit-scrollbar-track  { background: var(--bg-alt); }
+.code::-webkit-scrollbar-thumb  { background: var(--line); }
+.code::-webkit-scrollbar-thumb:hover { background: var(--fg-mute); }
+
+/* ----- Prism syntax highlight (Nothing/IDE palette) -------- */
+.code .token.comment,
+.code .token.prolog,
+.code .token.doctype,
+.code .token.cdata        { color: var(--fg-mute); font-style: italic; }
+.code .token.punctuation  { color: #6f7680; }
+.code .token.namespace    { opacity: 0.7; }
+.code .token.property,
+.code .token.tag,
+.code .token.constant,
+.code .token.symbol,
+.code .token.deleted      { color: #ffb060; }
+.code .token.boolean,
+.code .token.number       { color: #b88fff; }
+.code .token.selector,
+.code .token.attr-name,
+.code .token.string,
+.code .token.char,
+.code .token.builtin,
+.code .token.inserted     { color: #ffb060; }
+.code .token.operator,
+.code .token.entity,
+.code .token.url,
+.code .language-css .token.string,
+.code .style .token.string { color: var(--fg-dim); }
+.code .token.atrule,
+.code .token.attr-value,
+.code .token.keyword      { color: var(--accent); }
+.code .token.function,
+.code .token.class-name   { color: #6cb6ff; }
+.code .token.regex,
+.code .token.important,
+.code .token.variable     { color: #ffb060; }
+.code .token.important,
+.code .token.bold         { font-weight: 700; }
+.code .token.italic       { font-style: italic; }
+
+/* ----- Problems / metadata --------------------------------- */
+
+.problems {
+  background: var(--bg-alt);
+  border-top: 1px solid var(--line);
+  /* always visible at the bottom of the editor — has its own scroll
+     when several accordions are expanded */
+  flex: 0 0 auto;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.meta {
+  border-bottom: 1px solid var(--line);
+}
+.meta:last-child { border-bottom: 0; }
+
+.meta__summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  height: 28px;
+  padding: 0 14px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+  user-select: none;
+}
+.meta__summary::-webkit-details-marker { display: none; }
+.meta__summary:hover { color: var(--fg); }
+
+.meta__caret {
+  display: inline-block;
+  width: 10px;
+  color: var(--fg-mute);
+  transition: transform 0.12s;
+}
+.meta[open] > .meta__summary .meta__caret { transform: rotate(90deg); color: var(--accent); }
+
+.meta__label { color: var(--fg); font-weight: 500; }
+.meta__hint  { color: var(--fg-mute); margin-left: auto; }
+
+.meta__body {
+  margin: 0;
+  padding: 10px 14px 14px;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--fg);
+  line-height: 1.55;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;          /* each panel scrolls inside itself */
+}
+.meta__body--grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 16px;
+  row-gap: 4px;
+}
+.meta__body--grid .k { color: var(--fg-mute); font-size: 11px; letter-spacing: 0.06em; }
+.meta__body--grid .v { color: var(--fg); }
+
+/* inline action button inside a meta summary (e.g. "clear", "save") */
+.meta__action {
+  appearance: none;
+  margin-left: 8px;
+  padding: 0 8px;
+  height: 18px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.meta__action:hover { color: var(--accent); border-color: var(--accent); }
+.meta__action--accent {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.meta__action--accent:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* ----- Live log console ------------------------------------ */
+
+.logwin {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.45;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: auto;     /* instant scroll-to-bottom; no smooth lag */
+}
+.logwin:empty::before {
+  content: "// no logs yet";
+  display: block;
+  padding: 10px 14px;
+  color: var(--fg-mute);
+}
+
+.log {
+  display: grid;
+  grid-template-columns: auto auto 1fr;   /* intrinsic; column collapses if needed */
+  column-gap: 10px;
+  align-items: baseline;
+  padding: 1px 14px;
+}
+.log:hover { background: var(--line-soft); }
+
+.log__t {
+  color: var(--fg-mute);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.log__lvl {
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* <pre> log message — preserves newlines, wraps long tokens, no overflow */
+.log__msg {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fg);
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.log--debug .log__lvl { color: var(--fg-mute); }
+.log--debug .log__msg { color: var(--fg-dim); }
+.log--info  .log__lvl { color: #6cb6ff; }
+.log--warn  .log__lvl { color: var(--warn); }
+.log--warn  .log__msg { color: var(--warn); }
+.log--error .log__lvl { color: var(--accent); }
+.log--error .log__msg { color: var(--accent); }
+.log--meta  .log__lvl { color: #9a9a9a; }
+.log--meta  .log__msg { color: var(--fg-dim); font-style: italic; }
+
+/* small running indicator on the console summary while streaming */
+.meta--streaming .meta__hint {
+  color: var(--accent);
+}
+.meta--streaming .meta__hint::before {
+  content: "● ";
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* dynamic_challenge body uses the same Prism palette as the editor */
+.meta__body--code {
+  padding: 0;
+  background: var(--bg);
+}
+.meta__body--code > code {
+  display: block;
+  padding: 10px 14px 14px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+/* reuse the Prism token rules already defined under .code by mirroring them here */
+.meta__body--code .token.comment    { color: var(--fg-mute); font-style: italic; }
+.meta__body--code .token.punctuation{ color: #6f7680; }
+.meta__body--code .token.boolean,
+.meta__body--code .token.number     { color: #b88fff; }
+.meta__body--code .token.string,
+.meta__body--code .token.regex,
+.meta__body--code .token.constant   { color: #ffb060; }
+.meta__body--code .token.keyword,
+.meta__body--code .token.atrule     { color: var(--accent); }
+.meta__body--code .token.function,
+.meta__body--code .token.class-name { color: #6cb6ff; }
+.meta__body--code .token.operator   { color: var(--fg-dim); }
+
+/* ===== Prism line-numbers (Nothing-style restyle only) =====
+   Don't fight Prism on geometry — its defaults work. We only
+   override the colors and the right border so the gutter fits
+   the dark IDE palette. Specificity-bumped via .line-numbers
+   so we beat Prism's own .line-numbers .line-numbers-rows. */
+pre.code.line-numbers .line-numbers-rows {
+  border-right: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+pre.code.line-numbers .line-numbers-rows > span::before {
+  color: var(--fg-mute);
+  font-family: var(--font-ui);
+}
+
+/* ===== Bottom-bar buttons (api / npm) — same look as bar links ===== */
+.bar__link--btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--fg);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.bar__link--btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ===== Modal (api / npm contracts) ============================
+   Centered overlay, dark surface, 1px border, no rounded corners.
+   Pure Nothing — same chrome as the IDE. */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: modalIn 0.18s ease-out;
+}
+@keyframes modalIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  cursor: pointer;
+}
+
+.modal__panel {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+  animation: modalSlide 0.22s cubic-bezier(0.22, 0.8, 0.18, 1);
+}
+@keyframes modalSlide {
+  from { transform: translateY(8px) scale(0.98); }
+  to   { transform: translateY(0)   scale(1); }
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.modal__path {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--fg-mute);
+  letter-spacing: 0.04em;
+}
+.modal__title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.modal__title::before {
+  content: "// ";
+  color: var(--accent);
+}
+.modal__close {
+  appearance: none;
+  margin-left: auto;
+  width: 24px; height: 24px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg-mute);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal__close:hover {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.modal__body {
+  padding: 22px 22px 26px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  font-family: var(--font-ui);
+  color: var(--fg);
+}
+
+.modal__lede {
+  margin: 0 0 22px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-mute);
+}
+
+.modal__h3 {
+  margin: 22px 0 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg);
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.modal__h3:first-child { margin-top: 0; }
+.modal__h3num {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.modal__p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg);
+}
+.modal__p code, .modal__h3 code {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: #ffb060;
+  vertical-align: 0;
+}
+
+.modal__code {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--fg);
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.modal__code code { background: transparent; border: 0; padding: 0; color: inherit; }
+
+@media (max-width: 760px) {
+  .modal { padding: 12px; }
+  .modal__panel { max-height: calc(100vh - 24px); }
+  .modal__body { padding: 16px 16px 20px; }
+  .modal__code { font-size: 11px; max-height: 220px; }
+  .modal__path { display: none; }
+}
+
+/* ===== TakionAPI promo — gold gradient pill =================== */
+/* Single-line metallic-gold gradient pill, soft drop-shadow lift,
+   external-link icon that fades in on hover. Same SaaS-confident
+   pattern as akamai-v3-tools, recolored for the warm palette.
+   Attention is bought with the gradient block, not animation. */
+
+.promo {
+  position: fixed;
+  right: 22px;
+  bottom: calc(var(--bar-h) + 22px);
+  z-index: 50;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+
+  background: linear-gradient(90deg, var(--accent) 0%, #b89866 100%);
+  border: 0;
+  border-radius: 8px;
+  color: var(--bg);
+  overflow: hidden;
+
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+
+  box-shadow:
+    0 8px 24px -10px rgba(0, 0, 0, 0.65),
+    0 2px 6px -2px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  animation:
+    promoEnter 0.55s cubic-bezier(0.22, 0.8, 0.18, 1) 1.6s backwards,
+    promoBreathe 5.5s ease-in-out 4s infinite;
+  transition:
+    box-shadow 0.25s ease,
+    transform 0.25s ease,
+    background 0.25s ease;
+}
+
+.promo:hover {
+  background: linear-gradient(90deg, #e0c592 0%, #c8a574 100%);
+  box-shadow:
+    0 14px 36px -12px rgba(0, 0, 0, 0.8),
+    0 4px 12px -4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+@keyframes promoEnter {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* gentle breathe: 1.5px lift every 5.5s, 90% of cycle at rest */
+@keyframes promoBreathe {
+  0%, 90%, 100% {
+    transform: translateY(0);
+    box-shadow:
+      0 8px 24px -10px rgba(0, 0, 0, 0.65),
+      0 2px 6px -2px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+  95% {
+    transform: translateY(-1.5px);
+    box-shadow:
+      0 12px 30px -10px rgba(0, 0, 0, 0.75),
+      0 3px 10px -3px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+}
+
+/* logo — sits on the gradient, no frame */
+.promo__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  flex: 0 0 auto;
+}
+.promo__logo img { display: block; width: 22px; height: 22px; }
+
+/* the question — bold dark-on-gold */
+.promo__label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* lucide external-link icon — hidden until hover, fades in */
+.promo__ext {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  opacity: 0;
+  transform: translate(-3px, 0);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.promo:hover .promo__ext {
+  opacity: 1;
+  transform: translate(0, 0);
+}
+
+/* close — round button, soft dark overlay on hover */
+.promo__close {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--bg);
+  font: inherit;
+  width: 22px; height: 22px;
+  margin-left: 2px;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  opacity: 0.65;
+  transition: background 0.18s ease, opacity 0.18s ease;
+}
+.promo__close:hover {
+  background: rgba(14, 12, 10, 0.18);
+  opacity: 1;
+}
+.promo__close svg { display: block; }
+
+/* legacy slots from the old layout — keep them out of view */
+.promo__bracket,
+.promo__lines,
+.promo__sub,
+.promo__live,
+.promo__title,
+.promo__sep,
+.promo__caret,
+.promo__arrow { display: none; }
+
+/* ----- minimized state -------------------------------------- */
+/* A 44×44 gold gradient circle with the takion mark. Same brand,
+   smaller footprint, same breathe rhythm. */
+.promo.is-min {
+  padding: 8px;
+  gap: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  animation:
+    promoEnterMin 0.5s cubic-bezier(0.22, 0.8, 0.18, 1) 1s backwards,
+    promoBreathe 5.5s ease-in-out 4s infinite;
+}
+@keyframes promoEnterMin {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1);   }
+}
+.promo.is-min .promo__label,
+.promo.is-min .promo__ext,
+.promo.is-min .promo__close { display: none; }
+.promo.is-min .promo__logo     { width: 28px; height: 28px; }
+.promo.is-min .promo__logo img { width: 26px; height: 26px; }
+
+@media (max-width: 520px) {
+  .promo {
+    right: 14px;
+    bottom: calc(var(--bar-h) + 14px);
+    padding: 10px 14px;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .promo__logo     { width: 22px; height: 22px; }
+  .promo__logo img { width: 20px; height: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .promo { animation: none !important; }
+  .promo:hover { transform: none; }
+}
+
+/* ----- Responsive ------------------------------------------ */
+
+/* tablet — narrower rail */
+@media (max-width: 1024px) {
+  :root { --rail-w: 200px; }
+}
+
+/* phone — collapse rail, stack things, slim chrome */
+@media (max-width: 760px) {
+  .shell {
+    /* switch from grid to flex column so the rail can hug its content
+       without grid auto-rows stretching to fill min-height. eliminates
+       the empty gap between the rail's download .zip button and the
+       editor's breadcrumb header. */
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: 1fr;   /* harmless leftover; flex ignores it */
+    height: auto;
+    min-height: calc(100vh - var(--bar-h) * 2);
+    overflow: visible;
+  }
+  .rail {
+    flex: 0 0 auto;               /* size to content, no stretch */
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    max-height: none;
+    overflow: visible;
+  }
+  .rail__list {
+    flex: 0 1 auto;               /* don't stretch to fill empty space */
+    max-height: 180px;             /* cap the list itself, scroll if longer */
+    overflow-y: auto;
+  }
+  .rail__foot { padding: 6px 10px; }
+  .editor {
+    flex: 1 1 auto;               /* fill remaining min-height */
+    overflow: visible;
+  }
+  .results { overflow-y: visible; }   /* page scroll on mobile is fine */
+  .results__head { position: static; }
+  .dropwrap { padding: 32px 18px; }
+  .drop__file { font-size: 22px; }
+  .results__chip { display: none; }
+  .btn--xs { font-size: 9px; padding: 0 6px; }
+  .code { height: clamp(240px, 50vh, 480px); }
+}
+
+/* very narrow — drop the timestamp column from logs to keep them readable */
+@media (max-width: 520px) {
+  .log { grid-template-columns: auto 1fr; }
+  .log__t { display: none; }
+  .meta__action { font-size: 9px; padding: 0 6px; }
+  .bar { font-size: 10px; gap: 6px; padding: 0 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

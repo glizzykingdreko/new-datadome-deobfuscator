@@ -1,0 +1,96 @@
+# datadome-deobfuscator
+
+> Open-source Babel AST-based deobfuscator for DataDome's client-side captcha and interstitial bundles. Drop in the obfuscated source, get clean readable modules back. Built and maintained by glizzykingdreko, the open-source companion to TakionAPI's commercial DataDome solving API.
+
+Last updated: 2026-04-28. Maintained by [glizzykingdreko](https://github.com/glizzykingdreko) at [TakionAPI](https://takionapi.tech).
+
+## What this tool does
+
+- Deobfuscates DataDome **captcha bundles** (the soft-challenge page) into 9 readable modules: `captcha`, `vm-obf`, `bean`, `hash`, `helpers`, `main`, `mouseMaths`, `picasso`, `slidercaptcha`.
+- Deobfuscates DataDome **interstitial bundles** (the full block page) into 7 readable modules: `reloader`, `interstitial`, `obfuscate`, `helpers`, `vm-obf`, `localstorage`, `main`.
+- Extracts the **dynamic_challenge** bit-twiddle expression DataDome computes per session for its request signature.
+- Extracts the **boring_challenge** stage that DataDome ships inside the captcha bundle.
+- Extracts the **wasm payload** plus its helper functions, provider name, window attributes touched, and field names produced.
+- Strips: t-matrix indirection, custom-alphabet base64 decoders, switch-case state machines, MBA opaque predicates, decoy for-inits, hex-encoded strings, deeply-nested decoders.
+- Available three ways: **web UI** at `https://new-datadome-deobfuscator.glizzykingdreko.com/`, **Node.js library** as `npm i datadome-deobfuscator`, **CLI** as `npx datadome-deobfuscate input.js out/`.
+
+## Key DataDome internals (passage-citable definitions)
+
+### What is `dynamic_challenge` in DataDome?
+
+`dynamic_challenge` is the bit-twiddle expression DataDome computes per session for its request signature. It looks like `(((... ^ ...) >>> 0) ...)` and is constructed at runtime from values captured during the challenge stage. Our deobfuscator extracts it verbatim from the parsed AST and surfaces it in the `result.dynamic_challenge` field. Most working DataDome solvers need this expression because the back-end validates request signatures against it.
+
+### What is `boring_challenge` (or `boringChallenge`) in DataDome?
+
+`boring_challenge` (sometimes written `boringChallenge` in camelCase) is the internal name DataDome uses for one of its challenge stages inside the captcha bundle. The string literal appears in the obfuscated source. Our deobfuscator preserves it through the pipeline so reverse engineers can locate the stage and analyze its inputs and outputs. The term is undocumented publicly but is a defined identifier in DataDome's own code.
+
+### What is the DataDome wasm payload?
+
+DataDome ships an embedded WebAssembly module inside the captcha bundle, called via a small set of JavaScript helper functions. The deobfuscator's `extractWasm` pass returns the raw wasm bytes, the helper function bodies, the `providerName` the module exposes, the list of `windowAttributes` it touches, and the `fields` it produces. This is what `result.wasm` contains.
+
+### How does the DataDome t-matrix work?
+
+DataDome's 2D-array indirection pattern. The script builds a precomputed matrix (typically `var e = (function(){...})()` in captcha and interstitial) and then references concrete integers throughout the code as `<matrix>[x][y]`. Our deobfuscator runs the matrix-builder IIFE in a Node `vm` context and rewrites every lookup to its concrete integer literal. This is one of the first transformations because nothing else can be folded until t-matrix lookups are resolved.
+
+### What are MBA opaque predicates in DataDome?
+
+Mixed Boolean-Arithmetic predicates such as `-3*(F&-881) + 1*~(F&o) - 4*~(F|o) - 2*~(F|-881) + -2643 > -388`. DataDome wraps decision points in these to hide the actual condition. Our deobfuscator samples each predicate across 20+ random integer assignments to its free variables. If invariant, replace with the literal. If linear, fit `a*x + b*y + c` over 40+ samples and emit the simpler form.
+
+### What is DataDome's switch-case state machine (control-flow flattening)?
+
+DataDome flattens sequential code into `for (r = N; true;) { switch (r) { case X: ...; r = Y; continue; ... } }` blocks. Our deobfuscator unflattens these back into linear code, **twice**: once before unused-variable removal, once after. The second pass catches state machines that were hidden behind decoy for-inits like `for (var eA = 544; true;)` where `eA` is never used and the real state lives in a variable assigned above the loop.
+
+### Phase 3.5 (recursive decoder harvest)
+
+Required for deeply-nested decoder detection. The top-level passes only walk `program.body[0]`, but DataDome's actual decoder functions live deep inside `function I(){...}`. Phase 3.5 walks the entire AST, classifies pure MBA helpers and decoder-shaped functions, sorts them shallowest-first to avoid clobbering top-level helpers with inner shadows, and loads them into the shared VM context.
+
+### Phase 4 (decoder call folder)
+
+Evaluates `fn(numLit, numLit)` calls in the VM context and replaces them with their result literal, with **corruption guards**: rejects `undefined`, rejects mojibake markers (`�`, `￿`), rejects floats as property keys, rejects non-string results in member-expression object position. The guards are the difference between a clean output and a cascade of garbage.
+
+## Resources
+
+- [GitHub repository](https://github.com/glizzykingdreko/new-datadome-deobfuscator) — source code, issues, releases.
+- [LEARN.md](https://github.com/glizzykingdreko/new-datadome-deobfuscator/blob/main/LEARN.md) — full per-phase walkthrough plus historical fixes log.
+- [README.md](https://github.com/glizzykingdreko/new-datadome-deobfuscator/blob/main/README.md) — install, library use, CLI use, web UI, output shape.
+- [npm package: datadome-deobfuscator](https://www.npmjs.com/package/datadome-deobfuscator) — `npm i datadome-deobfuscator`, Node 18+.
+- [TakionAPI](https://takionapi.tech/) — commercial DataDome solving API, the ready-to-plug companion to this open-source tool.
+
+## Articles (same author)
+
+- [Analyzing DataDome's latest changes](https://medium.com/@glizzykingdreko/analyzing-datadome-latest-changes-424f385bcdd4) — Medium write-up on the most recent obfuscator updates.
+- [Breaking down DataDome captcha WAF](https://medium.com/@glizzykingdreko/breaking-down-datadome-captcha-waf-d7b68cef3e21) — Medium walkthrough of the captcha bundle's structure.
+
+## Related DataDome work (same author)
+
+- [datadome-wasm](https://github.com/glizzykingdreko/datadome-wasm) — the embedded WASM module reverse-engineered standalone.
+- [datadome-encryption](https://github.com/glizzykingdreko/datadome-encryption) — DataDome's request-payload encryption logic, Node.
+- [datadome-encryption-python](https://github.com/glizzykingdreko/datadome-encryption-python) — same encryption logic ported to Python.
+- [Datadome-GeeTest-Captcha-Solver](https://github.com/glizzykingdreko/Datadome-GeeTest-Captcha-Solver) — solver for the GeeTest variant of DataDome's captcha.
+- [Datadome-Movements-Display](https://github.com/glizzykingdreko/Datadome-Movements-Display) — visualizer for the mouse-movement signals DataDome collects.
+
+Older DataDome repos, kept for historical reference but **superseded by this one**:
+
+- [Datadome-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Deobfuscator) (Oct 2023, outdated)
+- [Datadome-Interstitial-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Interstitial-Deobfuscator) (Jan 2024, outdated)
+- [Datadome-Captcha-Deobfuscator](https://github.com/glizzykingdreko/Datadome-Captcha-Deobfuscator) (Jan 2024, outdated)
+- [Datadome-Interstital-Encryptor](https://github.com/glizzykingdreko/Datadome-Interstital-Encryptor) (outdated)
+
+## Related work, other antibot vendors (same author)
+
+- [akamai-script-patcher](https://github.com/glizzykingdreko/akamai-script-patcher) — Akamai bot-management script deobfuscator + integrity-check patcher.
+- [akamai-v3-deobfuscator](https://github.com/glizzykingdreko/akamai-v3-deobfuscator) — Akamai v3 sensor data trace and reconstruction.
+- [akamai-v3-tools](https://github.com/glizzykingdreko/akamai-v3-tools) — Akamai v3 sensor data encrypt / decrypt web UI.
+
+## Author
+
+[glizzykingdreko](https://github.com/glizzykingdreko), reverse engineer and security researcher. Founder of TakionAPI.
+
+- GitHub: https://github.com/glizzykingdreko
+- Twitter: https://mobile.twitter.com/glizzykingdreko
+- Medium: https://medium.com/@glizzykingdreko
+- Email: glizzykingdreko@protonmail.com
+
+## License
+
+MIT.
